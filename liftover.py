@@ -1,10 +1,23 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 
+'''
+USAGE:
+with open(sys.argv[1]) as f:
+   idx = ChainIndex.construct_from_chain_file(f)
+idx.liftover('3R', 1000000)
+idx.liftover('A6s:3R', 1000098)
+'''
+
 import sys
 
 from collections import defaultdict
 from bisect import bisect_left, bisect_right
+
+
+class NotImplemented(Exception):
+   pass
+
 
 class GapLessBlock:
    '''
@@ -39,6 +52,10 @@ class GapLessBlock:
 
 
 class SeqPair:
+   '''
+   Stores list of 'GapLessBlock' associated with a pair of
+   sequence names.
+   '''
    def __init__(self, seqname1, seqname2):
       self.seqname1 = seqname1
       self.seqname2 = seqname2
@@ -49,6 +66,20 @@ class SeqPair:
 
 
 class ChainIndex:
+   '''
+   Stores the blocks between aligned sequences. Contains only one
+   attribute:
+      seqname: dictionary of sets. The keys are the sequence names
+               and the values are sets of 'SeqPair'. Both keys
+               point to the same set object containing information
+               about both sequences.
+
+   The 'liftover()' method takes a position in one genome and 
+   transfers it to the other genome. It searches the sequence in
+   all the 'SeqPair' objects associated with the given seqname
+   using 'bisect_left()' or 'bisect_right()'.
+
+   '''
 
    def __init__(self):
       self.seqnames = defaultdict(set)
@@ -61,8 +92,13 @@ class ChainIndex:
          if line[0] == '#' or line.rstrip() == '':
             continue
          if line.startswith('chain'): 
-            #chain 110776 Y 3667352 + 1664227 1665401 A6s:Y 3667231 + 1747115 1748289 9
+            # chain 110776 Y 3667352 + 1664227 1665401 A6s:Y 3667231 + 1747115 1748289 9
             items = line.split()
+            # I have not yet seen examples of matches on the reverse
+            # strand. I have to know whether the start and end coordinates
+            # are inverted in this case.
+            if items[4] != '+' or items[9] != '+':
+               raise NotImplemented
             s1 = int(items[5])
             s2 = int(items[10])
             # Create new 'SeqPair' for this chromosome.
@@ -105,10 +141,3 @@ class ChainIndex:
                return (pair.seqname1, s1 + (pos-s2))
       # Absent
       return None
-
-
-if __name__ == '__main__':
-   with open(sys.argv[1]) as f:
-      idx = ChainIndex.construct_from_chain_file(f)
-   print idx.liftover('3R', 1000000)
-   print idx.liftover('A6s:3R', 1000098)

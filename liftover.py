@@ -56,9 +56,11 @@ class SeqPair:
    Stores list of 'GapLessBlock' associated with a pair of
    sequence names.
    '''
-   def __init__(self, seqname1, seqname2):
+   def __init__(self, seqname1, seqname2, strand1='+', strand2='+'):
       self.seqname1 = seqname1
       self.seqname2 = seqname2
+      self.strand1 = strand1
+      self.strand2 = strand2
       self.blocks = list()
 
    def append(self, block):
@@ -94,18 +96,14 @@ class ChainIndex:
          if line.startswith('chain'): 
             # chain 110776 Y 3667352 + 1664227 1665401 A6s:Y 3667231 + 1747115 1748289 9
             items = line.split()
-            # I have not yet seen examples of matches on the reverse
-            # strand. I have to know whether the start and end coordinates
-            # are inverted in this case.
-            if items[4] != '+' or items[9] != '+':
-               raise NotImplemented
-            s1 = int(items[5])
-            s2 = int(items[10])
             # Create new 'SeqPair' for this chromosome.
-            pair = SeqPair(items[2], items[7])
+            pair = SeqPair(items[2], items[7], items[4], items[9])
             # Create two seqname entries that point to it.
             cidx.seqnames[items[2]].add(pair)
             cidx.seqnames[items[7]] = cidx.seqnames[items[2]]
+            # Reset start positions.
+            s1 = int(items[5])
+            s2 = int(items[10])
             continue
          try:
             sz,n1,n2 = line.split()
@@ -131,13 +129,21 @@ class ChainIndex:
             block = pair.blocks[i]
             s1,e1, s2,e2 = block.boundaries()
             if s1 <= pos <= e1:
-               return (pair.seqname2, s2 + (pos-s1))
+               if pair.strand1 == pair.strand2:
+                  return (pair.seqname2, s2 + (pos-s1))
+               else:
+                  return (pair.seqname2, s2 + (e1-1-pos))
          elif seqname == pair.seqname2:
             # We need to search genome 2.
             i = bisect_right(pair.blocks, pos)
+            if i >= len(pair.blocks):
+               continue
             block = pair.blocks[i]
             s1,e1, s2,e2 = block.boundaries()
             if s2 <= pos <= e2:
-               return (pair.seqname1, s1 + (pos-s2))
+               if pair.strand1 == pair.strand2:
+                  return (pair.seqname1, s1 + (pos-s2))
+               else:
+                  return (pair.seqname1, s1 + (e2-1-pos))
       # Absent
       return None
